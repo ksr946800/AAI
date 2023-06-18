@@ -1,0 +1,143 @@
+import numpy as np
+from keras.models import Sequential
+from keras.layers import Dense, Flatten
+
+# Constants for the board dimensions
+BOARD_SIZE = 8
+
+# Constants for the disc colors
+EMPTY = 0
+BLACK = 1
+WHITE = -1
+
+# Function to initialize the game board
+def initialize_board():
+    board = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
+    board[3][3] = WHITE
+    board[4][4] = WHITE
+    board[3][4] = BLACK
+    board[4][3] = BLACK
+    return board
+
+# Function to convert the game board into an input feature vector
+def board_to_features(board):
+    features = np.zeros((1, BOARD_SIZE, BOARD_SIZE), dtype=int)
+    features[0] = board
+    return features
+
+# Function to build the AI model
+def build_model():
+    model = Sequential()
+    model.add(Flatten(input_shape=(BOARD_SIZE, BOARD_SIZE)))
+    model.add(Dense(128, activation='relu'))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dense(1, activation='sigmoid'))
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    return model
+
+# Function to train the AI model using a given dataset
+def train_model(model, X_train, y_train):
+    model.fit(X_train, y_train, epochs=10, batch_size=32)
+
+# Function to make a move on the board
+def make_move(board, row, col, color):
+    board[row][col] = color
+    for dr in [-1, 0, 1]:
+        for dc in [-1, 0, 1]:
+            if dr == 0 and dc == 0:
+                continue
+            r, c = row + dr, col + dc
+            while 0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE and board[r][c] == -color:
+                r += dr
+                c += dc
+                if 0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE and board[r][c] == color:
+                    while (r, c) != (row, col):
+                        r -= dr
+                        c -= dc
+                        board[r][c] = color
+                    break
+
+# Function to get a list of valid moves for a player
+def get_valid_moves(board, color):
+    moves = []
+    for row in range(BOARD_SIZE):
+        for col in range(BOARD_SIZE):
+            if is_valid_move(board, row, col, color):
+                moves.append((row, col))
+    return moves
+
+# Function to evaluate the score of the current board for a player
+def evaluate(board, color):
+    score = np.sum(board == color)
+    return score
+
+# Function to get the opponent's color
+def get_opponent(color):
+    return -color
+
+# Function to get the computer's move using the AI model
+def get_computer_move(board, color, model):
+    valid_moves = get_valid_moves(board, color)
+    if len(valid_moves) == 0:
+        return None
+    features = board_to_features(board)
+    predictions = model.predict(features)[0]
+    valid_predictions = predictions[np.where(board == EMPTY)]
+    best_index = np.argmax(valid_predictions)
+    best_move = valid_moves[best_index]
+    return best_move
+
+# Function to play the game
+def play_game():
+    board = initialize_board()
+    model = build_model()
+    X_train = [...]  # List of input feature vectors for training
+    y_train = [...]  # List of corresponding target labels for training
+    train_model(model, X_train, y_train)
+    current_player = BLACK
+
+    while True:
+        print_board(board)
+        print("Current player:", "Black" if current_player == BLACK else "White")
+
+        if current_player == BLACK:
+            valid_moves = get_valid_moves(board, BLACK)
+            if len(valid_moves) > 0:
+                row, col = map(int, input("Enter your move (e.g., 2c): ").split())
+                move = (row - 1, ord(col) - ord('a'))
+                if move in valid_moves:
+                    make_move(board, move[0], move[1], BLACK)
+                else:
+                    print("Invalid move. Please try again.")
+                    continue
+            else:
+                print("No valid moves. Pass.")
+            current_player = WHITE
+        else:
+            valid_moves = get_valid_moves(board, WHITE)
+            if len(valid_moves) > 0:
+                print("Computer is thinking...")
+                move = get_computer_move(board, WHITE, model)
+                if move is not None:
+                    make_move(board, move[0], move[1], WHITE)
+            else:
+                print("No valid moves. Pass.")
+            current_player = BLACK
+
+        if len(get_valid_moves(board, BLACK)) == 0 and len(get_valid_moves(board, WHITE)) == 0:
+            break
+
+    print("Game over!")
+    black_score = evaluate(board, BLACK)
+    white_score = evaluate(board, WHITE)
+    print("Black score:", black_score)
+    print("White score:", white_score)
+    if black_score > white_score:
+        print("Black wins!")
+    elif white_score > black_score:
+        print("White wins!")
+    else:
+        print("It's a draw!")
+
+# Play the game
+play_game()
